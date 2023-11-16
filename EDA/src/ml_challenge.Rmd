@@ -1,0 +1,534 @@
+---
+title: "ml Challenge - Kiszkurno Miguel - Exploratory data analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Setup
+
+```{r clean up memory}
+# memory clean up
+rm(list = ls()) # remove all objects
+gc() # garbage collection
+
+
+```
+
+```{r import libraries, warning=FALSE, message=FALSE}
+
+# Import libraries
+
+library(tidyverse)
+library(corrr)
+library(knitr)
+library(kableExtra)
+library(GGally)
+library(tidymodels)
+library(rsample)
+library(ggplot2)
+
+```
+
+
+
+```{r setup things}   
+
+#Change this if you want to run it
+knitr::opts_knit$set(root.dir = "/Users/miguelkiszkurno/Documents/metlife/test-docker/src")
+
+#seed to be used in the future
+g_seed = 730 
+
+```
+
+
+```{r load dataset}
+
+#Load the dataset
+ds <- read.table(paste0("/Users/miguelkiszkurno/Documents/metlife/test-docker/datasets/dataset.csv"),
+                        sep=",", dec=".", header = TRUE, fill = TRUE)
+
+# fijamos semilla
+set.seed(g_seed)
+
+# Split the data
+train_test <- initial_split(ds, prop = 0.9)
+ds <- training(train_test)
+ds_test <- testing(train_test)
+
+# Check dimensions
+ds %>%
+  dim_desc() 
+ds_test %>%
+  dim_desc() 
+
+#General view of the dataset
+glimpse(ds)
+
+```
+
+# Preliminary analysis
+
+
+```{r unique and missing values}
+
+#Gather information
+exp_table =  ds %>%
+                gather(., 
+                      key = "variables", 
+                      value = "values") %>% # Grouping by variable
+                group_by(variables) %>% 
+                summarise(unique_values = n_distinct(values),
+                percentaje_missing = sum(is.na(values))/nrow(ds)*100) %>% 
+                arrange(desc(percentaje_missing), unique_values) # order by percentaje
+
+#View the table
+exp_table
+
+```
+
+```{r categorical variables}
+
+# Want to check factor variables
+regions <- data.frame(campo = "region", valor = unique(ds$region))
+smokers <- data.frame(campo = "smoker", valor = unique(ds$smoker))
+sex <- data.frame(campo = "sex", valor = unique(ds$sex))
+
+# Combine the datasets to see everything together
+df_unique_values <- do.call(rbind, list(regions, smokers, sex))
+
+# View the dataset
+df_unique_values
+
+
+```
+
+
+```{r factor variables conversion}
+
+transform_factor_variables <- function (data_set){
+  
+  data_set$region <- factor(data_set$region)
+  data_set$sex <- factor(data_set$sex)
+  data_set$smoker <- data_set$smoker == "yes"
+
+  return (data_set)
+}
+
+ds <- transform_factor_variables(ds)
+ds_test <-transform_factor_variables (ds_test)
+
+# Another quick look to the resulting dataset
+glimpse(ds)
+```
+
+
+```{r descriptive metrics}
+
+#Check some standard descriptive metrics of the dataset.
+ds_metrics <- ds %>%
+      select_if(is.numeric) %>% 
+      gather(., 
+             key = "variable", 
+             value = "values") %>% # agrupamos por las variables del set
+             group_by(variable) %>%
+                  summarise(min = min(values),
+                            mean = mean(values),
+                            median = median(values),
+                            sd = sd(values),
+                            max = max(values) ) %>% 
+                                      arrange(variable) # orden
+ds_metrics
+
+```
+
+
+```{r relation between numeric variables (GGPairs), message=FALSE, warning=FALSE, fig.width=8, fig.height=8}
+
+#Miro la relación entre las variables 
+numericas <- ds %>%
+  select(where(is.numeric), sex)
+
+ggpairs(numericas,  mapping = aes(color = sex))
+
+numericas <- ds %>%
+  select(where(is.numeric), smoker)
+
+ggpairs(numericas,  mapping = aes(color = smoker))
+
+numericas <- ds %>%
+  select(where(is.numeric), region)
+ggpairs(numericas,  mapping = aes(color = region))
+
+```
+
+```{r correlation matrix, message=FALSE}
+
+ds %>% 
+ correlate() %>% 
+  shave() %>% 
+  fashion() 
+
+ds %>% 
+ correlate() %>% 
+  rplot()
+
+```
+
+
+
+$ age      <int> 19, 18, 28, 33, 32, 31, 46, 37, 37, 60, 25, 62, 23, 56, 27, 19, 52, 23, 56, 30, 60, 30, 18, 34, 37, 59, 63, 55, 23, 31, 22, 18, 19, 63, 28, 19, 62, 26, …
+$ bmi      <dbl> 27.900, 33.770, 33.000, 22.705, 28.880, 25.740, 33.440, 27.740, 29.830, 25.840, 26.220, 26.290, 34.400, 39.820, 42.130, 24.600, 30.780, 23.845, 40.300, …
+$ children <int> 0, 1, 3, 0, 0, 0, 1, 3, 2, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1, 2, 3, 0, 2, 1, 2, 0, 0, 5, 0, 1, 0, 3, 0, 1, 0, 0, 2, 1, 2, 1, 0, 2, 0, 0, 1, 0,…
+
+
+```{r target variable boxplots}
+
+
+# Charges by sex
+ggplot(ds, aes(x = sex, y = charges, group = sex, fill = sex))+
+  geom_boxplot() +
+  scale_y_continuous(limits = c(0, 70000))
+
+
+# Charges by region
+ggplot(ds, aes(x = region, y = charges, group = region, fill = region))+
+  geom_boxplot() +
+  scale_y_continuous(limits = c(0, 70000)) # definimos escala del eje y
+
+
+# Charges by region smoker
+ggplot(ds, aes(x = smoker, y = charges, group = smoker, fill = smoker))+
+  geom_boxplot() +
+  scale_y_continuous(limits = c(0, 70000)) # definimos escala del eje y
+
+
+```
+
+
+
+
+```{r outliers superior threshold}
+limite_superior_outliers = IQR(ds$charges) * 1.5 + quantile(ds$charges, 0.75)[[1]]
+limite_superior_outliers
+```
+
+```{r outliers}
+outliers_charges <- ds %>% filter(charges>limite_superior_outliers) %>% arrange(., desc(charges))
+outliers_charges
+```
+
+```{r outliers inferior threshold}
+limite_inferior_charges = quantile(ds$charges, 0.25)[[1]] - IQR(ds$charges) * 1.5
+limite_inferior_charges 
+```
+
+
+# Linear Regression: Predict charges using all the features
+
+## Model Fiting
+```{r model charges ~ all data}
+			
+# fit the model
+mdl_all = lm(formula = charges ~ ., data = ds)
+
+# View the model summary (dataframe format)
+tidy_mdl_all <- tidy(mdl_all, conf.int = TRUE) %>% arrange(p.value)
+tidy_mdl_all
+
+# View the model summary (plain text format)
+summary_mdl_all = summary(mdl_all)
+summary_mdl_all
+
+```
+
+## Model diagnosis
+
+```{r model charges ~ all diagnosis}
+
+# Plot the residuals
+plot(mdl_all)
+
+```
+
+
+# Linear Regression: Predict log(charges) using all the features
+
+## Previous calculations
+
+```{r calculate log.charges}
+
+# Will use the log to normalize the charges field
+ds = ds %>% 
+  mutate(log.charges = log(charges))
+
+head(ds)
+
+```
+
+
+```{r view distributions}
+
+#Charges (without applying log)
+ggplot(data = ds, aes(x = round(charges))) + 
+  geom_histogram(col = "white", aes( fill = ..count..), alpha = 0.75) +
+  labs(title = "charges Histogram") +
+  labs(x = "charges") +
+  theme_bw()
+
+#Charges (applying log)
+ggplot(data = ds, aes(x = log.charges)) + 
+  geom_histogram(col = "white", aes( fill = ..count..), alpha = 0.75) +
+  labs(title = "log.charges Histogram") +
+  labs(x = "log.charges") +
+  theme_bw()
+
+```
+
+## Model fitting 
+
+```{r Log(charges) ~ all data}
+
+#Fit the model using log.charges as target and all the other features as predictors
+mdl_log_all = lm(formula = log.charges ~ age + sex + bmi + children + smoker + region, data = ds)
+mdl_log_all
+
+# View the model summary (plain text format)
+summary_mdl_log_all = summary(mdl_log_all)
+summary_mdl_log_all
+
+# View the model summary (dataframe format)
+tidy_summary_mdl_log_all <- tidy(summary_mdl_log_all, conf.int = TRUE) %>% arrange(p.value)
+tidy_summary_mdl_log_all
+
+```
+
+
+```{r plot coeficients significance model charges ~ all}
+
+# Coeficients plot
+ggplot(tidy_summary_mdl_log_all, aes(estimate, term, xmin = conf.low, xmax = conf.high, height = 0)) +
+  geom_point(color = "forestgreen",size=2) +
+  geom_vline(xintercept = 0, lty = 4, color = "black") +
+  geom_errorbarh(color = "forestgreen", size=1) +
+  theme_bw() +
+  labs(y = "Coeficientes β", x = "Estimación")
+
+```
+
+## Model diagnosis
+
+```{r model Log(charges) ~ all data}
+
+# Plot the residuals
+plot(mdl_log_all)
+
+```
+# Linear Regression: Adding iteration between age and smoker (mdl_log_all_it_smoker_age)
+ 
+## Model Fiting
+
+
+```{r model log.charges ~ sex + bmi + children + smoker * age + region}
+
+# Fit the model
+mdl_log_all_it_smoker_age = lm(formula = log.charges ~ sex + bmi + children + smoker * age + region, data = ds)
+mdl_log_all_it_smoker_age
+
+# View the model (dataframe format)
+summary_mdl_log_all_it_smoker_age = summary(mdl_log_all_it_smoker_age)
+summary_mdl_log_all_it_smoker_age
+
+# View the model (plain text format)
+tidy_summary_mdl_log_all_it_smoker_age <- tidy(summary_mdl_log_all_it_smoker_age, conf.int = TRUE) %>% arrange(p.value)
+tidy_summary_mdl_log_all_it_smoker_age
+
+```
+
+## Model diagnosis
+
+```{r model model log.charges ~ sex + bmi + children + smoker * age + region diagnosis}
+
+# Plot the residuals
+plot(mdl_log_all_it_smoker_age)
+
+```
+
+# Linear Regression: Predict Log(charges) Adding iteration between smoker and bmi (mdl_log_all_it_smoker_age_bmi)
+
+
+```{r model log.charges ~ sex + smoker * bmi + children + smoker * age + region}
+
+# Fit the model
+mdl_log_all_it_smoker_age_bmi = lm(formula = log.charges ~ sex + smoker * bmi + children + smoker * age + region, data = ds)
+mdl_log_all_it_smoker_age_bmi
+
+# View the model (plain text format)
+summary_mdl_log_all_it_smoker_age_bmi = summary(mdl_log_all_it_smoker_age_bmi)
+summary_mdl_log_all_it_smoker_age_bmi
+
+# View the model (dataframe format)
+tidy_summary_mdl_log_all_it_smoker_age_bmi <- tidy(summary_mdl_log_all_it_smoker_age_bmi, conf.int = TRUE) %>% arrange(p.value)
+tidy_summary_mdl_log_all_it_smoker_age_bmi
+
+
+```
+
+## Model diagnosis
+```{r model log.charges ~ sex + smoker * bmi + children + smoker * age + region diagnosis}
+plot(mdl_log_all_it_smoker_age_bmi)
+
+```
+
+
+# Linear Regression: Predict Log(charges) Adding iteration between age and bmi (mdl_log_all_it_age_bmi)
+ 
+
+```{r model log.charges ~ sex + age * bmi + children + smoker + region}
+mdl_log_all_it_age_bmi = lm(formula = log.charges ~ sex + age * bmi + children + smoker + region, data = ds)
+mdl_log_all_it_age_bmi
+
+
+# View the model summary (plain text format)
+summary_mdl_log_all_it_age_bmi = summary(mdl_log_all_it_age_bmi)
+summary_mdl_log_all_it_age_bmi
+
+# View the model summary (dataframe format)
+tidy_summary_mdl_log_all_it_age_bmi <- tidy(summary_mdl_log_all_it_age_bmi, conf.int = TRUE) %>% arrange(p.value)
+tidy_summary_mdl_log_all_it_age_bmi
+
+```
+
+## model diagnosis
+```{r model log.charges ~ sex + age * bmi + children + smoker + region diagnosis}
+
+# Plot the residuals
+plot(mdl_log_all_it_age_bmi)
+
+```
+
+# Linear Regression: Predict charges Adding iteration between smoker, bmi and Age (mdl_all_it_smoker_age_bmi)
+
+
+```{r model charges ~ sex + smoker * bmi + children + smoker * age + region}
+mdl_all_it_smoker_age_bmi = lm(formula = charges ~ sex + smoker * bmi + children + smoker * age + region, data = ds)
+mdl_all_it_smoker_age_bmi
+
+# View the model summary (plain text format)
+summary_mdl_all_it_smoker_age_bmi = summary(mdl_all_it_smoker_age_bmi)
+summary_mdl_all_it_smoker_age_bmi
+
+# View the model summary (dataframe format)
+tidy_summary_mdl_all_it_smoker_age_bmi <- tidy(summary_mdl_all_it_smoker_age_bmi, conf.int = TRUE) %>% arrange(p.value)
+tidy_summary_mdl_all_it_smoker_age_bmi
+
+
+```
+
+## Model diagnosis
+```{r model charges ~ sex + smoker * bmi + children + smoker * age + region diagnosis}
+
+# Plot the residuals
+plot(mdl_all_it_smoker_age_bmi)
+
+```
+
+
+
+# Model Comparison
+
+## Evaluation in training data
+
+```{r model comparison}
+
+get_metrics_from_model <-function(model, test_data = NULL){
+  
+  target = model[["terms"]][[2]]
+  formula = deparse(model[["terms"]][[3]])
+  mdl_name = paste0(target, "~", formula)
+
+  if (is.null(test_data)){
+    cat("No text data")
+    eval <- broom::augment(model, ds)
+  }
+  else{
+    eval <- broom::augment(model, newdata = test_data)
+  }
+
+    
+  if (target == "charges"){
+    metrics = metrics(data = eval, truth = charges, estimate = .fitted) %>% mutate(.estimate = round(.estimate, 4)) %>% mutate(model = mdl_name)
+  }
+  else{
+    # log models require to do the exp
+    eval = eval %>%  mutate(fitted_antilog = exp(.fitted))
+    
+    # Compute RMSE, R2 and MAE for charge (not logcharges) so we can compare all the models
+    metrics = metrics(data = eval, truth = charges, estimate = fitted_antilog) %>% mutate(.estimate = round(.estimate, 4)) %>% mutate(model = mdl_name) 
+  }
+    
+  return (metrics)
+}
+
+# all the models I want to compare in the models list
+models <- list(mdl_all = mdl_all, 
+               mdl_log_all = mdl_log_all, 
+               mdl_log_all_it_smoker_age = mdl_log_all_it_smoker_age,
+               mdl_log_all_it_smoker_age_bmi = mdl_log_all_it_smoker_age_bmi, 
+               mdl_log_all_it_age_bmi = mdl_log_all_it_age_bmi, 
+               mdl_all_it_smoker_age_bmi = mdl_all_it_smoker_age_bmi
+               )
+metrics_total <- list()
+
+for (m in models) {
+ 
+  metrics = get_metrics_from_model (m)
+  metrics_total <- bind_rows(metrics_total, metrics)
+}
+#Compare RMSE
+metrics_total  %>%
+  filter(.metric == "rmse") %>%
+  arrange(.estimate)
+
+#Compare MAE
+metrics_total  %>%
+  filter(.metric == "mae") %>%
+  arrange(.estimate)
+
+#Compare R-Squared
+metrics_total  %>%
+  filter(.metric == "rsq") %>%
+  arrange(desc(.estimate))
+
+```
+
+### Para Test
+
+Vamos a calcular el MAE, RMSE y R2 para los 6 modelos
+
+```{r comparo entrenamiento 2}
+
+metrics_total <- list()
+
+for (m in models) {
+ 
+  metrics = get_metrics_from_model (m, ds_test)
+  metrics_total <- bind_rows(metrics_total, metrics)
+}
+#Compare RMSE
+metrics_total  %>%
+  filter(.metric == "rmse") %>%
+  arrange(.estimate)
+
+#Compare MAE
+metrics_total  %>%
+  filter(.metric == "mae") %>%
+  arrange(.estimate)
+
+#Compare R-Squared
+metrics_total  %>%
+  filter(.metric == "rsq") %>%
+  arrange(desc(.estimate))
+
+```
