@@ -7,6 +7,7 @@ podman build \
   -f Containerfile \
   .
 
+
 ## With docker
 docker build \
   -t challenge:latest \
