@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.metrics import mean_squared_error
 
 from sklearn.metrics import mean_squared_error
+
 import lightgbm as lgb
 from hyperopt import fmin, hp, tpe
 
@@ -66,9 +67,6 @@ def main():
     baseline_model, r2, mae, mse =  train_baseline_model(X_train, y_train, X_test, y_test)
    
 
-    #model = serch_hiperparameters()
-
-
     space = {
         'learning_rate': hp.loguniform('learning_rate', -7, 0),
         'num_leaves': hp.randint('num_leaves', 10, 50),
@@ -77,7 +75,13 @@ def main():
     }
 
 
-    best = fmin(fn = objective, space = space, algo = tpe.suggest, max_evals = 100)
+    print("### started hyperparameters started ###\n\n")
+
+
+    best = fmin(fn = objective, space = space, algo = tpe.suggest, max_evals = 100, verbose=False)
+
+    print("\n\n\n### hyperparameters search finished ###")
+    print("... found the following hyperparameters ...\n\n")
 
     print(best)
 
@@ -94,16 +98,20 @@ def main():
 
     # Hacer predicciones en el conjunto de testing
     y_pred = model.predict(X_test)
+    print("... calculating performance metrics ...\n\n")
+
     r2_2, mse_2, mae_2 = calculate_metrics(y_pred, y_test)
 
-
     # Saves the linear model in a file
+    print("... model and one hot encoder saved ...\n")
     model_path = MODEL_DIR + fn_lbgm_model_pickle
     save_model(model, model_path)
+    print (f"model: {model_path}")
     
     # Saves the one_hot_encoder in a file
-    one_hot_encoding_path = MODEL_DIR + fn_one_hot_encoding_pickle
+    one_hot_encoding_path = MODEL_DIR + fn_one_hot_encoding _pickle
     save_model (onehot_encoder, one_hot_encoding_path)
+    print (f"one hot encoder: {one_hot_encoding_path}\n\n\n")
 
 
 if __name__ == "__main__":

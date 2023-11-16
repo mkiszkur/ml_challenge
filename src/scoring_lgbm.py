@@ -27,6 +27,9 @@ fn_one_hot_encoding_pickle = MODEL_DIR + 'one_hot_encoding.pkl'
 
 X, y = get_dataset(10)
 
+
+print("... lodading the model and encoder ...\n")
+
 # Cargar el modelo desde el archivo pickle
 with open(fn_lbgm_model_pickle, 'rb') as file:
     lgbm_loaded = pickle.load(file)
@@ -43,8 +46,10 @@ onehot_encoder, X_encoded = encode_data(X, label_columns, onehot_encoder)
 # Predicts on the sample
 y_pred = lgbm_loaded.predict(X_encoded)
 
-       
+print("... calculating metrics ...\n")
+      
 r2, mse, mae = calculate_metrics(y_pred, y)
 save_metrics (dict({'model': 'lgbm_regression', 'r2': r2, 'mse': mse, 'mae': mae}),
                 MODEL_DIR + fn_model_metrics)
+print(f"metrics saved in {MODEL_DIR + fn_model_metrics}\n")
 
