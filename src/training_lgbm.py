@@ -109,7 +109,7 @@ def main():
     print (f"model: {model_path}")
     
     # Saves the one_hot_encoder in a file
-    one_hot_encoding_path = MODEL_DIR + fn_one_hot_encoding _pickle
+    one_hot_encoding_path = MODEL_DIR + fn_one_hot_encoding_pickle
     save_model (onehot_encoder, one_hot_encoding_path)
     print (f"one hot encoder: {one_hot_encoding_path}\n\n\n")
 
